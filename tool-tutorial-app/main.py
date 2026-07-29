@@ -23,6 +23,7 @@ COLORS = {
     "text": "#e8edf4",
     "muted": "#8b9cb3",
     "accent": "#3b82f6",
+    "accent_soft": "#1a2d4a",
     "accent_dark": "#2563eb",
     "warning_bg": "#2a2318",
     "warning_border": "#6b4f1a",
@@ -63,10 +64,13 @@ class ToolTutorialApp(tk.Tk):
 
         self.tools = load_tools()
         self.search_var = tk.StringVar()
-        self.search_var.trace_add("write", lambda *_: self._filter_tools())
+        self._ui_ready = False
+        self._search_placeholder = "Search tools..."
 
         self._setup_styles()
         self._build_ui()
+        self._ui_ready = True
+        self.search_var.trace_add("write", lambda *_: self._filter_tools())
         self._show_home()
 
     def _setup_styles(self) -> None:
@@ -183,19 +187,17 @@ class ToolTutorialApp(tk.Tk):
             highlightcolor=COLORS["accent"],
         )
         self.search_entry.pack(fill=tk.X, ipady=8)
-        self.search_entry.insert(0, "")
-        placeholder = "Search tools..."
-        self.search_entry.insert(0, placeholder)
+        self.search_var.set(self._search_placeholder)
         self.search_entry.config(fg=COLORS["muted"])
 
         def on_focus_in(_event: tk.Event) -> None:
-            if self.search_entry.get() == placeholder:
-                self.search_entry.delete(0, tk.END)
+            if self.search_var.get() == self._search_placeholder:
+                self.search_var.set("")
                 self.search_entry.config(fg=COLORS["text"])
 
         def on_focus_out(_event: tk.Event) -> None:
-            if not self.search_entry.get():
-                self.search_entry.insert(0, placeholder)
+            if not self.search_var.get().strip():
+                self.search_var.set(self._search_placeholder)
                 self.search_entry.config(fg=COLORS["muted"])
 
         self.search_entry.bind("<FocusIn>", on_focus_in)
@@ -309,8 +311,10 @@ class ToolTutorialApp(tk.Tk):
             self.canvas.yview_scroll(direction, "units")
 
     def _filter_tools(self) -> None:
+        if not self._ui_ready:
+            return
         query = self.search_var.get().strip().lower()
-        if query == "search tools...":
+        if query == self._search_placeholder.lower():
             query = ""
         if not query:
             self._render_tool_cards(self.tools)
@@ -370,7 +374,7 @@ class ToolTutorialApp(tk.Tk):
             tk.Label(
                 meta,
                 text=label,
-                bg=COLORS["accent"] + "22",
+                bg=COLORS["accent_soft"],
                 fg=COLORS["accent"],
                 font=("Segoe UI", 8, "bold"),
                 padx=8,
