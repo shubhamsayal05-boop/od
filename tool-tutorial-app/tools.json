@@ -1,0 +1,62 @@
+[
+  {
+    "id": "odriv",
+    "name": "ODRIV",
+    "description": "Driveability rating and powertrain evaluation workbook for target vehicle analysis.",
+    "category": "Analysis",
+    "pptFile": "presentations/odriv-tutorial.pptx",
+    "estimatedMinutes": 25,
+    "steps": [
+      {
+        "title": "Open the workbook",
+        "description": "Launch ODRIV_v29_2_1_AT.xlsm and enable macros when prompted.",
+        "tips": ["Save a local copy before editing configurations."]
+      },
+      {
+        "title": "Configure target vehicle",
+        "description": "Go to the TARGET VEHICLE sheet and select the drive version and vehicle model.",
+        "tips": ["Use default values during the testing phase."]
+      },
+      {
+        "title": "Set powertrain parameters",
+        "description": "Open the POWERTRAIN sheet and choose engine type (GASOLINE or DIESEL).",
+        "tips": ["Check color thresholds (rouge, orange, vert) for rating bands."]
+      },
+      {
+        "title": "Run calculations",
+        "description": "Navigate to Calculs and verify input parameters before triggering the rating workflow.",
+        "tips": []
+      },
+      {
+        "title": "Review results",
+        "description": "Check the Résultats and RATING sheets for Driveability and Responsiveness indices.",
+        "tips": ["Export or screenshot results for your report."]
+      }
+    ]
+  },
+  {
+    "id": "example-tool",
+    "name": "Example Tool",
+    "description": "Template entry — duplicate this block in tools.json when adding a new tool.",
+    "category": "Template",
+    "pptFile": "presentations/example-tool-tutorial.pptx",
+    "estimatedMinutes": 10,
+    "steps": [
+      {
+        "title": "Step 1 — Getting started",
+        "description": "Describe the first action the user should take.",
+        "tips": ["Add helpful hints here."]
+      },
+      {
+        "title": "Step 2 — Main workflow",
+        "description": "Explain the core steps for using the tool.",
+        "tips": []
+      },
+      {
+        "title": "Step 3 — Wrap up",
+        "description": "How to save, export, or verify the output.",
+        "tips": []
+      }
+    ]
+  }
+]
