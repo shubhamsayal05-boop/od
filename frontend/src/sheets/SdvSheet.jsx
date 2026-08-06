@@ -3,7 +3,7 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
-import { api, fmt, getChannel, CELL_COLORS } from "@/lib/api";
+import { api, fmt, getChannel, resolveKey, CELL_COLORS } from "@/lib/api";
 import { useWorkbook } from "@/components/Workbook";
 
 const TEAL = "#215967";
@@ -26,7 +26,7 @@ export default function SdvSheet({ name }) {
       setData(res.data);
     } catch (e) { setErr(e.response?.data?.detail || e.message); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [name]);
+  useEffect(() => { load(); }, [name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = async () => {
     setBusy(true);
@@ -39,8 +39,15 @@ export default function SdvSheet({ name }) {
     if (!data) return [];
     const key = part === "driv" ? "driv" : "resp";
     return (data.structure?.criteria || [])
-      .map((c) => ({ name: c.name, crit: data.targets?.[c.name]?.[key] ?? null,
-        wl: data.targets?.[c.name]?.wl, t: data.targets?.[c.name]?.t }))
+      .map((c) => {
+        const t = resolveKey(data.targets, c.name);
+        return {
+          name: c.name,
+          crit: t?.[key] ?? null,
+          wl: t?.wl,
+          t: t?.t,
+        };
+      })
       .filter((c) => c.crit !== null);
   }, [data, part]);
 

@@ -50,13 +50,13 @@ class TestProjectPipeline:
     PROJECT = {
         "name_code": "TEST_PYTEST_PROJECT",
         "mode": "AUTO",
-        "fuel": "Diesel",
-        "gears": "8AT",
-        "software_milestone": "MS3",
-        "priority": "P1",
+        "fuel": "DIESEL",
+        "gears": "8",
+        "software_milestone": "MDL2",
+        "priority": "PREMIUM",
         "version": "4.6",
-        "odriv_milestone": "MS3",
-        "area": "EU",
+        "odriv_milestone": "MDL2",
+        "area": "EUROPE",
         "target_vehicle": "REF",
         "number_of_gears": 8,
     }
@@ -66,7 +66,7 @@ class TestProjectPipeline:
         assert r.status_code == 200, r.text
         p = r.json()
         assert p["name_code"] == self.PROJECT["name_code"]
-        assert p["fuel"] == "Diesel"
+        assert p["fuel"] == "DIESEL"
         assert "id" in p
 
     def test_02_update_project(self, session):
@@ -225,15 +225,23 @@ class TestConfigEditRoundtrip:
         r = session.get(f"{API}/config/targets", timeout=10)
         assert r.status_code == 200
         data = r.json()
+        assert isinstance(data, list) and len(data) > 100
         # PUT it back as-is
-        r2 = session.put(f"{API}/config/targets", json={"data": data}, timeout=15)
+        r2 = session.put(f"{API}/config/targets", json={"data": data}, timeout=30)
         assert r2.status_code == 200
         assert r2.json()["ok"] is True
         # GET back
         r3 = session.get(f"{API}/config/targets", timeout=10)
         assert r3.status_code == 200
-        # structural equality (key set)
-        assert set(r3.json().keys()) == set(data.keys())
+        got = r3.json()
+        assert isinstance(got, list)
+        assert len(got) == len(data)
+        assert got[0]["sdv"] == data[0]["sdv"]
+        assert got[0]["criteria"] == data[0]["criteria"]
+
+    def test_put_rejects_wrong_type(self, session):
+        r = session.put(f"{API}/config/targets", json={"data": {"not": "a list"}}, timeout=10)
+        assert r.status_code == 400
 
     def test_put_unknown_section(self, session):
         r = session.put(f"{API}/config/__nope__", json={"data": {}}, timeout=10)

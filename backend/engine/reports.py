@@ -32,6 +32,21 @@ VERDICT_COLOR = {"Low Risk": (0, 0xB0, 0x50), "Medium Risk": (0xFF, 0xC0, 0),
 PT_COLOR = {"RED": "#FF0000", "YELLOW": "#E6C200", "GREEN": "#00B050"}
 
 
+def _fmt_doc_versions(versions):
+    """Normalize doc_versions entries (str or {name, version}) for slide text."""
+    parts = []
+    for v in versions or []:
+        if isinstance(v, dict):
+            name = str(v.get("name") or "").strip()
+            ver = str(v.get("version") or "").strip()
+            label = " ".join(x for x in (name, ver) if x)
+            if label:
+                parts.append(label)
+        elif v:
+            parts.append(str(v))
+    return " / ".join(parts)
+
+
 def scatter_png(events, x_name, y_name, title):
     """Build a colored scatter chart PNG for one SDV; returns bytes or None."""
     xs, ys, cs = [], [], []
@@ -95,7 +110,7 @@ def build_pptx(data, out_path):
             project.get("odriv_milestone") or "-",
             str(project.get("version") or "-").lstrip("Vv"), project.get("area") or "-"),
         "Target vehicle: %s" % (project.get("target_vehicle") or "-"),
-        "Document versions: %s" % (" / ".join(v for v in data.get("doc_versions", []) if v) or "-"),
+        "Document versions: %s" % (_fmt_doc_versions(data.get("doc_versions")) or "-"),
         "Generated: %s" % datetime.now().strftime("%Y-%m-%d %H:%M"),
     ]
     for i, line in enumerate(lines):
@@ -237,7 +252,7 @@ def build_pdf(data, out_path):
         project.get("target_vehicle") or "-"), body))
     story.append(Paragraph("Generated: %s — Doc versions: %s" % (
         datetime.now().strftime("%Y-%m-%d %H:%M"),
-        " / ".join(v for v in data.get("doc_versions", []) if v) or "-"), body))
+        _fmt_doc_versions(data.get("doc_versions")) or "-"), body))
     story.append(Spacer(1, 14))
 
     story.append(Paragraph("Risk assessment for customer complaints", h2))

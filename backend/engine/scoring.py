@@ -9,6 +9,7 @@ J5/BQ5 = 100*(1+sum(indice_occ)/N)^PUISS, status dots vs the SETTINGS
 milestone matrices, weighted rate of low points, NoteGlobale_2 3x3 verdict.
 """
 from .classifier import get_channel, _to_float, _check_single
+from .config_loader import resolve_criteria_row, resolve_priorisation
 
 COLOR_ORDER = {"GREEN": 0, "YELLOW": 1, "RED": 2}
 VERDICT_MATRIX = [
@@ -111,15 +112,26 @@ def criticity_level(color, priority, indice, criticity_cfg):
 
 
 def score_event(channels, criteria_rows, part, coefficients, prior_cfgs,
-                criticity_cfg):
+                criticity_cfg, structure_criteria=None):
     """Full per-event computation for one part ('driv'/'dyn').
 
     criteria_rows: {criterion_name: targets_row} for this SDV.
+    structure_criteria: optional list of structure criterion names; when
+    provided, matching is case-insensitive against targets (workbook drift).
     """
     key = "driv" if part == "driv" else "resp"
     c1, c2 = [], []
     crit_colors = {}
-    for name, row in criteria_rows.items():
+    names = structure_criteria or list(criteria_rows.keys())
+    seen = set()
+    for name in names:
+        row = resolve_criteria_row(criteria_rows, name)
+        if row is None:
+            continue
+        lname = str(name).strip().lower()
+        if lname in seen:
+            continue
+        seen.add(lname)
         res = criterion_index(_to_float(get_channel(channels, name)),
                               _to_float(row.get("wl")), _to_float(row.get("t")),
                               row.get(key))
@@ -280,8 +292,19 @@ def calculate_rating(project, events, cfg, targets_lookup, canon_map):
         if not criteria_rows:
             continue
         block = blocks_up.get(up, {})
-        prior_cfgs = prior_up.get(up, [])
+        prior_cfgs = resolve_priorisation(prior_up, up)
         cat = catalog.get(up, {})
+        structure = cfg.get("structure") or {}
+        struct = structure.get(sdv_name)
+        if struct is None:
+            for key, val in structure.items():
+                if key.strip().upper() == up:
+                    struct = val
+                    break
+        struct = struct or {}
+        structure_criteria = [
+            c.get("name") for c in (struct.get("criteria") or []) if c.get("name")
+        ]
         result = {"name": sdv_name, "group": cat.get("group", ""),
                   "order": cat.get("order", 999), "n_events": len(evs)}
         for part in ("driv", "dyn"):
@@ -289,7 +312,8 @@ def calculate_rating(project, events, cfg, targets_lookup, canon_map):
             lowest = None
             for ev in evs:
                 sc = score_event(ev["channels"], criteria_rows, part,
-                                 coefficients, prior_cfgs, cfg["criticity"])
+                                 coefficients, prior_cfgs, cfg["criticity"],
+                                 structure_criteria=structure_criteria or None)
                 if sc is None:
                     continue
                 scores.append(sc)

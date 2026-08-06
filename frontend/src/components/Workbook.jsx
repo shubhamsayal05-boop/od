@@ -26,6 +26,7 @@ const CONFIG_TABS = [
 
 export default function Workbook() {
   const [state, setState] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [active, setActiveState] = useState(() => decodeURIComponent(window.location.hash.slice(1)) || "HOME");
   const [unlocked, setUnlocked] = useState(false);
   const [showUnlock, setShowUnlock] = useState(false);
@@ -47,14 +48,16 @@ export default function Workbook() {
     try {
       const res = await api.get("/state");
       setState(res.data);
+      setLoadError(null);
     } catch (e) {
       console.error("state fetch failed", e);
+      setLoadError(e.response?.data?.detail || e.message || "Backend unreachable");
     }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const openTab = useCallback((name) => setActive(name), []);
+  const openTab = useCallback((name) => setActive(name), [setActive]);
 
   const ctx = { state, refresh, openTab, busy, setBusy, setSelection, unlocked };
 
@@ -62,8 +65,18 @@ export default function Workbook() {
   const configNames = CONFIG_TABS.map(([n]) => n);
 
   let content = null;
-  if (!state) {
-    content = <div style={{ padding: 40, color: "#666" }}>Loading ODRIV…</div>;
+  if (!state && loadError) {
+    content = (
+      <div style={{ padding: 40, maxWidth: 560 }} data-testid="backend-error">
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>DriveScope can’t reach the API</div>
+        <div style={{ color: "#666", marginBottom: 14, lineHeight: 1.5 }}>
+          {loadError}. Start the backend on port 8000 (see README), then retry.
+        </div>
+        <button className="xl-btn primary" onClick={refresh} data-testid="backend-retry-btn">Retry connection</button>
+      </div>
+    );
+  } else if (!state) {
+    content = <div style={{ padding: 40, color: "#666" }}>Loading DriveScope…</div>;
   } else if (active === "HOME") content = <HomeSheet />;
   else if (active === "RATING") content = <RatingSheet />;
   else if (active === "VERSIONS") content = <VersionsSheet />;
@@ -76,8 +89,8 @@ export default function Workbook() {
   return (
     <WorkbookCtx.Provider value={ctx}>
       <div className="xl-titlebar" data-testid="titlebar">
-        <span className="logo">X⃞ ODRIV</span>
-        <span className="doc-name">ODRIV_v29_2_1_AT.xlsm — Python Edition</span>
+        <span className="logo">DriveScope</span>
+        <span className="doc-name">ODRIV_v29_2_1_AT — drivability rating workbook</span>
         <span style={{ fontSize: 11, opacity: 0.85 }}>{state?.version || ""}</span>
       </div>
       <div className="xl-formulabar">

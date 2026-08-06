@@ -1,0 +1,43 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - odriv_mongo:/data/db
+
+  backend:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: odriv
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    command: >
+      bash -c "pip install --no-cache-dir -q -r requirements-app.txt
+      && uvicorn server:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+
+  frontend:
+    image: node:22-bullseye
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    environment:
+      REACT_APP_BACKEND_URL: http://localhost:8000
+      CHOKIDAR_USEPOLLING: "true"
+    command: >
+      bash -c "yarn install --frozen-lockfile || yarn install
+      && yarn start"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  odriv_mongo:

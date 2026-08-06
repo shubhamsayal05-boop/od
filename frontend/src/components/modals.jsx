@@ -43,7 +43,7 @@ export function UnlockModal({ onClose, onUnlock }) {
         />
       </div>
       <div style={{ fontSize: 11, color: err ? "#c00" : "#777" }}>
-        {err ? "Wrong password." : "Hint: same password as the original tool (SHEETPASS)."}
+        {err ? "Wrong password." : "Hint: type UNLOCK (same as the original VBA unhide)."}
       </div>
     </Modal>
   );
@@ -167,7 +167,7 @@ export function OpenDatabaseModal({ onClose }) {
     setEvents(res.data.events);
     setTotal(res.data.total);
   };
-  useEffect(() => { load(0); setSkip(0); /* eslint-disable-next-line */ }, [sdv]);
+  useEffect(() => { load(0); setSkip(0); }, [sdv]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const del = async (id) => {
     if (!window.confirm("Delete this record from the database?")) return;

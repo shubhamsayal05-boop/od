@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useWorkbook } from "@/components/Workbook";
 import { NewProjectModal, DocVersionsModal, OpenDatabaseModal } from "@/components/modals";
@@ -34,6 +34,12 @@ export default function HomeSheet() {
     setLists(res.data);
     return res.data;
   };
+
+  // Load milestone / area lists on mount so project dropdowns stay valid after refresh.
+  useEffect(() => {
+    ensureLists().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const run = async (label, fn) => {
     setBusyMsg(label);
@@ -89,10 +95,10 @@ export default function HomeSheet() {
     <div style={{ minHeight: "100%", background: "#fff" }}>
       {/* row 1 banner */}
       <div style={{ background: NAVY, color: "#fff", padding: "14px 30px", display: "flex", alignItems: "baseline", gap: 30 }}>
-        <span style={{ fontSize: 34, fontWeight: 700, letterSpacing: 6 }} data-testid="home-title">ODRIV</span>
-        <span style={{ fontSize: 13, opacity: 0.8 }}>{state?.version}</span>
+        <span style={{ fontSize: 34, fontWeight: 700, letterSpacing: 2 }} data-testid="home-title">DriveScope</span>
+        <span style={{ fontSize: 13, opacity: 0.8 }}>ODRIV {state?.version}</span>
         <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.6 }}>
-          Objective DRIVability — Stellantis/PSA toolchain (Python port)
+          Objective DRIVability — powertrain rating (Python port of v29.2.1 AT)
         </span>
       </div>
 

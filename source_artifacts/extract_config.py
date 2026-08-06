@@ -1,15 +1,16 @@
 """Extract the complete ODRIV configuration from the original .xlsm into JSON.
 
-Run once: python3 extract_config.py
-Outputs into /app/backend/engine/data/
+Run once: python3 source_artifacts/extract_config.py
+Outputs into backend/engine/data/
 """
 import json
 import os
 import re
 import openpyxl
 
-SRC = "/app/source_artifacts/ODRIV_v29_2_1_AT.xlsm"
-OUT = "/app/backend/engine/data"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SRC = os.path.join(ROOT, "source_artifacts", "ODRIV_v29_2_1_AT.xlsm")
+OUT = os.path.join(ROOT, "backend", "engine", "data")
 os.makedirs(OUT, exist_ok=True)
 
 wb = openpyxl.load_workbook(SRC, data_only=True)

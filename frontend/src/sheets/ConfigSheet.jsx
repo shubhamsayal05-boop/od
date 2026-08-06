@@ -19,7 +19,7 @@ export default function ConfigSheet({ sheetName, section }) {
     }
     setDirty(false);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [section]);
+  useEffect(() => { load(); }, [section]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     setSaving(true);
@@ -33,8 +33,18 @@ export default function ConfigSheet({ sheetName, section }) {
     finally { setSaving(false); }
   };
 
-  const mutate = (fn) => { fn(); setData({ ...data }); setDirty(true); };
-  const mutateExtra = (fn) => { fn(); setExtra({ ...extra }); setDirty(true); };
+  const mutate = (fn) => {
+    fn();
+    // Preserve array sections (definitions/targets/catalog). Object spread on an
+    // array produces a plain object and crashes .map() on the next render.
+    setData(Array.isArray(data) ? data.slice() : { ...data });
+    setDirty(true);
+  };
+  const mutateExtra = (fn) => {
+    fn();
+    setExtra(Array.isArray(extra) ? extra.slice() : { ...extra });
+    setDirty(true);
+  };
 
   if (!data) return <div style={{ padding: 30, color: "#777" }}>Loading {sheetName}…</div>;
 

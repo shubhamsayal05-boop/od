@@ -54,12 +54,56 @@ def canon_name(name, canon_map):
     return canon_map.get(str(name).strip().upper(), str(name).strip())
 
 
+def _norm_key(s):
+    return str(s or "").replace("\u00b7", ".").strip().lower()
+
+
+def resolve_criteria_row(criteria_rows, name):
+    """Case-insensitive criterion lookup into a targets map."""
+    if not criteria_rows or name is None:
+        return None
+    if name in criteria_rows:
+        return criteria_rows[name]
+    lname = _norm_key(name)
+    for key, row in criteria_rows.items():
+        if _norm_key(key) == lname:
+            return row
+    return None
+
+
+# Catalog / priorisation sheet naming drift from the original workbook.
+SDV_ALIASES = {
+    "DECEL - TRANS TO CST SPD - COLD": "DECEL TRANSITION TO CST SPEED - COLD",
+    "DECEL TRANSITION TO CST SPEED - COLD": "DECEL - TRANS TO CST SPD - COLD",
+}
+
+
+def resolve_priorisation(prior_up, sdv_upper):
+    """Find priorisation configs for an SDV, including known aliases."""
+    if not prior_up:
+        return []
+    if sdv_upper in prior_up:
+        return prior_up[sdv_upper]
+    alias = SDV_ALIASES.get(sdv_upper)
+    if alias and alias in prior_up:
+        return prior_up[alias]
+    # last-resort fuzzy: ignore punctuation/spacing differences
+    compact = "".join(ch for ch in sdv_upper if ch.isalnum())
+    for key, val in prior_up.items():
+        if "".join(ch for ch in key if ch.isalnum()) == compact:
+            return val
+    return []
+
+
 def build_targets_lookup(targets, project):
     """Targets rows filtered to the project's drive version / range / mode.
 
     Returns {SDV_UPPER: {criterion: row}}. Falls back progressively (drop
     mode filter, then range filter) so an unexpected project value can
     never empty the whole lookup and silently kill the scoring chain.
+
+    Criterion keys keep their original spelling; callers should resolve
+    via resolve_criteria_row() for case-insensitive matching.
     """
     raw_v = str(project.get("version") or "4.6").upper().lstrip("V")
     version = "V" + raw_v

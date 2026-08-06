@@ -101,3 +101,75 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: Fix DriveScope (ODRIV) tool — bootability, rating fidelity, UI crashes, reports
+## backend:
+  - task: "Engine scoring + channel/priorisation aliases"
+    implemented: true
+    working: true
+    file: "backend/engine/scoring.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Unit + HTTP suites pass (32 tests). Demo pipeline scores 64 SDVs with global driv/dyn verdicts."
+  - task: "PPTX/PDF report generation"
+    implemented: true
+    working: true
+    file: "backend/engine/reports.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Fixed doc_versions dict join TypeError; pptx+pdf endpoints green."
+  - task: "Config PUT validation + events search"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Wrong-type PUT rejected; search filters before pagination."
+## frontend:
+  - task: "ConfigSheet array mutate crash"
+    implemented: true
+    working: true
+    file: "frontend/src/sheets/ConfigSheet.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Array sections now use slice() instead of object spread."
+  - task: "Workbook API error state + API URL fallback"
+    implemented: true
+    working: true
+    file: "frontend/src/components/Workbook.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Defaults to localhost:8000; shows retry UI when /state fails."
+## metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 1
+  run_ui: false
+## test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+## agent_communication:
+  - agent: "main"
+    message: "DriveScope fixes verified: 7 engine unit tests + 25 HTTP e2e tests all passing against local Mongo + uvicorn."

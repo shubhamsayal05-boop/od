@@ -1,18 +1,18 @@
-"""ODRIV backend — FastAPI port of the Excel/VBA tool ODRIV v29.2.1 AT."""
+"""ODRIV / DriveScope backend — FastAPI port of Excel/VBA ODRIV v29.2.1 AT."""
 import json
 import os
-import io
 import logging
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Body
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import UpdateOne
 from starlette.middleware.cors import CORSMiddleware
 
 from engine import config_loader, scoring, importer
@@ -20,19 +20,21 @@ from engine.classifier import classify_event, get_channel
 from engine import reports as report_builder
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ.get("MONGO_URL", "mongodb://127.0.0.1:27017")
+db_name = os.environ.get("DB_NAME", "odriv")
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[db_name]
 
-app = FastAPI(title="ODRIV")
+app = FastAPI(title="DriveScope (ODRIV)", version="29.2.1")
 api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("odriv")
 
-ODRIV_VERSION = "VERSION v29_2_1_AT (Python)"
+ODRIV_VERSION = "VERSION v29_2_1_AT (Python / DriveScope)"
+CONFIG_SECTIONS = set(config_loader.SECTION_FILES.keys())
 
 PROJECT_FIELDS = ["name_code", "mode", "fuel", "gears", "software_milestone",
                   "priority", "version", "odriv_milestone", "area",
@@ -210,10 +212,15 @@ async def download_sample():
     cfg = await get_config()
     canon = canon_map_of(cfg)
     events = importer.generate_sample_events(cfg["definitions"], cfg["structure"], canon)
-    path = os.path.join(tempfile.gettempdir(), "ODRIV_sample_acquisition.xlsx")
+    tmp = tempfile.NamedTemporaryFile(prefix="ODRIV_sample_", suffix=".xlsx", delete=False)
+    path = tmp.name
+    tmp.close()
     importer.write_sample_workbook(path, events)
-    return FileResponse(path, filename="ODRIV_sample_acquisition.xlsx",
-                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    return FileResponse(
+        path,
+        filename="ODRIV_sample_acquisition.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 # --------------------------------------------------------------- rating
@@ -231,9 +238,12 @@ async def calculate_rating():
     targets_lookup = config_loader.build_targets_lookup(cfg["targets"], project)
     updates, sdv_results, global_results = scoring.calculate_rating(
         project, events, cfg, targets_lookup, canon)
-    # persist
-    for ev_id, parts in updates.items():
-        await db.events.update_one({"id": ev_id}, {"$set": parts})
+    if updates:
+        ops = [UpdateOne({"id": ev_id}, {"$set": parts}) for ev_id, parts in updates.items()]
+        # batch to keep BSON command size comfortable
+        batch = 500
+        for i in range(0, len(ops), batch):
+            await db.events.bulk_write(ops[i:i + batch], ordered=False)
     await db.sdv_results.delete_many({})
     if sdv_results:
         await db.sdv_results.insert_many([dict(r) for r in sdv_results])
@@ -298,6 +308,21 @@ async def sdv_detail(name: str):
     spec = cfg["structure"].get(cname, {"columns": [], "data": [], "criteria": []})
     targets_lookup = config_loader.build_targets_lookup(cfg["targets"], project or {})
     targets = targets_lookup.get(cname.strip().upper(), {})
+    # Expose targets under both stored and structure criterion spellings so the
+    # SDV sheet can join without case mismatches.
+    targets_out = {}
+    for k, v in targets.items():
+        payload = {"wl": v.get("wl"), "t": v.get("t"),
+                   "driv": v.get("driv"), "resp": v.get("resp")}
+        targets_out[k] = payload
+    for crit in spec.get("criteria") or []:
+        name = crit.get("name")
+        if not name or name in targets_out:
+            continue
+        row = config_loader.resolve_criteria_row(targets, name)
+        if row:
+            targets_out[name] = {"wl": row.get("wl"), "t": row.get("t"),
+                                 "driv": row.get("driv"), "resp": row.get("resp")}
     charts = {k.strip().upper(): v for k, v in cfg["chart_params"].items()}.get(
         cname.strip().upper(), [])
     # flatten event rows for the sheet grid
@@ -308,9 +333,7 @@ async def sdv_detail(name: str):
                "driv": ev.get("driv"), "dyn": ev.get("dyn"), "channels": ch}
         rows.append(row)
     return {"name": cname, "result": result, "structure": spec,
-            "targets": {k: {"wl": v.get("wl"), "t": v.get("t"),
-                            "driv": v.get("driv"), "resp": v.get("resp")}
-                        for k, v in targets.items()},
+            "targets": targets_out,
             "charts": charts, "events": rows, "project": project}
 
 
@@ -319,16 +342,24 @@ async def sdv_detail(name: str):
 @api.get("/events")
 async def list_events(search: Optional[str] = None, sdv: Optional[str] = None,
                       skip: int = 0, limit: int = 50):
-    q = {}
+    q: dict[str, Any] = {}
     if sdv:
         q["sdv"] = sdv
+    skip = max(int(skip or 0), 0)
+    limit = min(max(int(limit or 50), 1), 500)
+    needle = (search or "").strip().lower()
+    if needle:
+        # Filter first, then page — acquisition DBs are modest (hundreds/thousands).
+        events = await db.events.find(q, {"_id": 0}).to_list(100000)
+        events = [
+            e for e in events
+            if needle in (e.get("sdv") or "").lower()
+            or needle in json.dumps(e.get("channels") or {}, default=str).lower()
+        ]
+        total = len(events)
+        return {"total": total, "events": events[skip:skip + limit]}
     total = await db.events.count_documents(q)
-    cur = db.events.find(q, {"_id": 0}).skip(skip).limit(min(limit, 500))
-    events = await cur.to_list(min(limit, 500))
-    if search:
-        s = search.lower()
-        events = [e for e in events if s in json.dumps(e["channels"]).lower()
-                  or s in e["sdv"].lower()]
+    events = await db.events.find(q, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     return {"total": total, "events": events}
 
 
@@ -368,11 +399,21 @@ async def one_config(section: str):
 
 @api.put("/config/{section}")
 async def put_config(section: str, payload: dict = Body(...)):
+    if section not in CONFIG_SECTIONS:
+        raise HTTPException(404, f"Unknown config section {section}")
     doc = await db.config.find_one({"section": section})
     if not doc:
         raise HTTPException(404, f"Unknown config section {section}")
-    await db.config.update_one({"section": section},
-                               {"$set": {"data": payload.get("data")}})
+    if "data" not in payload or payload.get("data") is None:
+        raise HTTPException(400, "Missing config payload 'data'")
+    data = payload["data"]
+    expected = type(doc.get("data"))
+    if expected is not type(None) and not isinstance(data, expected):
+        raise HTTPException(
+            400,
+            f"Config section '{section}' expects {expected.__name__}, got {type(data).__name__}",
+        )
+    await db.config.update_one({"section": section}, {"$set": {"data": data}})
     await moniteur(f"Configuration sheet '{section}' modified")
     return {"ok": True}
 
@@ -433,7 +474,9 @@ async def create_report(fmt: str, payload: dict = Body(default={})):
     data = {"project": project, "global": glob, "sdv_results": rows,
             "charts": charts,
             "doc_versions": payload.get("doc_versions") or []}
-    out = os.path.join(tempfile.gettempdir(), f"ODRIV_report.{fmt}")
+    tmp = tempfile.NamedTemporaryFile(prefix="ODRIV_report_", suffix=f".{fmt}", delete=False)
+    out = tmp.name
+    tmp.close()
     if fmt == "pptx":
         report_builder.build_pptx(data, out)
         media = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -442,7 +485,7 @@ async def create_report(fmt: str, payload: dict = Body(default={})):
         media = "application/pdf"
     await moniteur(f"Report generated ({fmt.upper()})")
     fname = f"ODRIV_{(project.get('name_code') or 'report').replace(' ', '_')}.{fmt}"
-    return FileResponse(out, filename=fname, media_type=media)
+    return FileResponse(out, filename=fname, media_type=media, background=None)
 
 
 app.include_router(api)
