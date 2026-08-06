@@ -52,10 +52,10 @@ class TestProjectPipeline:
         "mode": "AUTO",
         "fuel": "Diesel",
         "gears": "8AT",
-        "software_milestone": "MS3",
-        "priority": "P1",
+        "software_milestone": "MDL2",
+        "priority": "PREMIUM",
         "version": "4.6",
-        "odriv_milestone": "MS3",
+        "odriv_milestone": "MDL2",
         "area": "EU",
         "target_vehicle": "REF",
         "number_of_gears": 8,
@@ -139,6 +139,27 @@ class TestProjectPipeline:
         assert len(data["events"]) == 10
         assert "id" in data["events"][0]
 
+    def test_09b_events_search_pagination(self, session):
+        # Regression: search used to be applied only to the already-paginated
+        # page, so matches beyond the first `limit` events were silently
+        # dropped and `total` stayed unfiltered.
+        r_all = session.get(f"{API}/events?limit=500", timeout=15)
+        events = r_all.json()["events"]
+        sdv_name = next(e["sdv"] for e in events if e["sdv"])
+        expected = sum(1 for e in events if sdv_name.lower() in e["sdv"].lower())
+        assert expected > 5, "need an SDV with enough events to span pages"
+
+        r = session.get(f"{API}/events", params={"search": sdv_name, "limit": 5}, timeout=15)
+        data = r.json()
+        assert data["total"] == expected
+        assert all(sdv_name.lower() in e["sdv"].lower() for e in data["events"])
+
+        r2 = session.get(f"{API}/events", params={"search": sdv_name, "limit": 5, "skip": 5}, timeout=15)
+        data2 = r2.json()
+        assert data2["total"] == expected
+        assert len(data2["events"]) > 0
+        assert all(sdv_name.lower() in e["sdv"].lower() for e in data2["events"])
+
     def test_10_event_update_and_delete(self, session):
         r = session.get(f"{API}/events?limit=1", timeout=10)
         ev = r.json()["events"][0]
@@ -195,7 +216,7 @@ class TestProjectPipeline:
         rc = session.post(f"{API}/rating/calculate", timeout=120)
         assert rc.status_code == 200
         r = session.post(f"{API}/report/pptx",
-                         json={"doc_versions": [{"name": "Test", "version": "1.0"}]},
+                         json={"doc_versions": ["Test 1.0"]},
                          timeout=180)
         assert r.status_code == 200, r.text
         assert len(r.content) > 5000
@@ -232,12 +253,26 @@ class TestConfigEditRoundtrip:
         # GET back
         r3 = session.get(f"{API}/config/targets", timeout=10)
         assert r3.status_code == 200
-        # structural equality (key set)
-        assert set(r3.json().keys()) == set(data.keys())
+        # targets is a list of rows — verify it round-tripped unchanged
+        reloaded = r3.json()
+        assert isinstance(reloaded, list)
+        assert reloaded == data
 
     def test_put_unknown_section(self, session):
         r = session.put(f"{API}/config/__nope__", json={"data": {}}, timeout=10)
         assert r.status_code == 404
+
+    def test_put_missing_data_rejected(self, session):
+        # Regression: PUT without a 'data' key used to silently persist
+        # null and break every later read of the section.
+        r = session.put(f"{API}/config/targets", json={}, timeout=10)
+        assert r.status_code == 400
+        r2 = session.put(f"{API}/config/targets", json={"data": None}, timeout=10)
+        assert r2.status_code == 400
+        # the section must still be readable/intact afterwards
+        r3 = session.get(f"{API}/config/targets", timeout=10)
+        assert r3.status_code == 200
+        assert r3.json() is not None
 
 
 # ------------------------------------------------------------- cleanup
