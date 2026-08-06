@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Body
 from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+from starlette.background import BackgroundTask
 from starlette.middleware.cors import CORSMiddleware
 
 from engine import config_loader, scoring, importer
@@ -132,6 +133,13 @@ async def update_project(payload: dict = Body(...)):
     return await get_project()
 
 
+def _cleanup_file(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 async def _erase_all():
     await db.events.delete_many({})
     await db.sdv_results.delete_many({})
@@ -170,15 +178,19 @@ async def _store_events(parsed, filename, cfg):
             "unclassified": unclassified, "per_sdv": per_sdv}
 
 
-@api.post("/import/file")
-async def import_file(file: UploadFile = File(...)):
-    project = await get_project()
+def _require_project_ready(project):
     if not project:
         raise HTTPException(400, "Project information missing. Create a project first.")
     missing = [f for f in ("fuel", "gears", "software_milestone", "odriv_milestone")
                if not project.get(f)]
     if missing:
         raise HTTPException(400, "Project information missing : " + ", ".join(missing))
+
+
+@api.post("/import/file")
+async def import_file(file: UploadFile = File(...)):
+    project = await get_project()
+    _require_project_ready(project)
     content = await file.read()
     try:
         parsed, _ = importer.parse_trie(content)
@@ -194,8 +206,7 @@ async def import_file(file: UploadFile = File(...)):
 @api.post("/import/demo")
 async def import_demo():
     project = await get_project()
-    if not project:
-        raise HTTPException(400, "Project information missing. Create a project first.")
+    _require_project_ready(project)
     cfg = await get_config()
     canon = canon_map_of(cfg)
     events = importer.generate_sample_events(cfg["definitions"], cfg["structure"], canon)
@@ -210,10 +221,12 @@ async def download_sample():
     cfg = await get_config()
     canon = canon_map_of(cfg)
     events = importer.generate_sample_events(cfg["definitions"], cfg["structure"], canon)
-    path = os.path.join(tempfile.gettempdir(), "ODRIV_sample_acquisition.xlsx")
+    fd, path = tempfile.mkstemp(prefix="ODRIV_sample_", suffix=".xlsx")
+    os.close(fd)
     importer.write_sample_workbook(path, events)
     return FileResponse(path, filename="ODRIV_sample_acquisition.xlsx",
-                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        background=BackgroundTask(_cleanup_file, path))
 
 
 # --------------------------------------------------------------- rating
@@ -322,13 +335,18 @@ async def list_events(search: Optional[str] = None, sdv: Optional[str] = None,
     q = {}
     if sdv:
         q["sdv"] = sdv
-    total = await db.events.count_documents(q)
-    cur = db.events.find(q, {"_id": 0}).skip(skip).limit(min(limit, 500))
-    events = await cur.to_list(min(limit, 500))
+    limit = min(limit, 500)
     if search:
         s = search.lower()
-        events = [e for e in events if s in json.dumps(e["channels"]).lower()
-                  or s in e["sdv"].lower()]
+        cur = db.events.find(q, {"_id": 0})
+        matched = [e for e in await cur.to_list(100000)
+                   if s in json.dumps(e["channels"]).lower() or s in e["sdv"].lower()]
+        total = len(matched)
+        events = matched[skip:skip + limit]
+    else:
+        total = await db.events.count_documents(q)
+        cur = db.events.find(q, {"_id": 0}).skip(skip).limit(limit)
+        events = await cur.to_list(limit)
     return {"total": total, "events": events}
 
 
@@ -371,8 +389,10 @@ async def put_config(section: str, payload: dict = Body(...)):
     doc = await db.config.find_one({"section": section})
     if not doc:
         raise HTTPException(404, f"Unknown config section {section}")
+    if "data" not in payload or payload["data"] is None:
+        raise HTTPException(400, "Missing 'data' payload")
     await db.config.update_one({"section": section},
-                               {"$set": {"data": payload.get("data")}})
+                               {"$set": {"data": payload["data"]}})
     await moniteur(f"Configuration sheet '{section}' modified")
     return {"ok": True}
 
@@ -433,7 +453,8 @@ async def create_report(fmt: str, payload: dict = Body(default={})):
     data = {"project": project, "global": glob, "sdv_results": rows,
             "charts": charts,
             "doc_versions": payload.get("doc_versions") or []}
-    out = os.path.join(tempfile.gettempdir(), f"ODRIV_report.{fmt}")
+    fd, out = tempfile.mkstemp(prefix="ODRIV_report_", suffix=f".{fmt}")
+    os.close(fd)
     if fmt == "pptx":
         report_builder.build_pptx(data, out)
         media = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -442,7 +463,8 @@ async def create_report(fmt: str, payload: dict = Body(default={})):
         media = "application/pdf"
     await moniteur(f"Report generated ({fmt.upper()})")
     fname = f"ODRIV_{(project.get('name_code') or 'report').replace(' ', '_')}.{fmt}"
-    return FileResponse(out, filename=fname, media_type=media)
+    return FileResponse(out, filename=fname, media_type=media,
+                        background=BackgroundTask(_cleanup_file, out))
 
 
 app.include_router(api)
