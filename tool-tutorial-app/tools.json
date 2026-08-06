@@ -1,12 +1,22 @@
 [
   {
-    "id": "odriv",
-    "name": "ODRIV",
+    "id": "drivescope",
+    "name": "DriveScope (ODRIV)",
     "description": "Driveability rating and powertrain evaluation workbook for target vehicle analysis.",
     "category": "Analysis",
-    "pptFile": "presentations/odriv-tutorial.pptx",
+    "pptFile": "presentations/drivescope-tutorial.pptx",
     "estimatedMinutes": 25,
     "steps": [
+      {
+        "title": "Run setup",
+        "description": "From the repository root, run: python scripts/setup_drivescope.py. This creates data/db, patches portable paths, and updates the workbook macros.",
+        "tips": ["Keep a backup of your workbook before the first setup run."]
+      },
+      {
+        "title": "Install the database",
+        "description": "Copy _OdrivDB.accdb into data/db/. Year-specific project databases (_OdrivDB_1.accdb, etc.) go in data/db/2026/.",
+        "tips": ["Without the database file, DriveScope will show a clear startup error with the expected path."]
+      },
       {
         "title": "Open the workbook",
         "description": "Launch ODRIV_v29_2_1_AT.xlsm and enable macros when prompted.",
@@ -31,31 +41,6 @@
         "title": "Review results",
         "description": "Check the Résultats and RATING sheets for Driveability and Responsiveness indices.",
         "tips": ["Export or screenshot results for your report."]
-      }
-    ]
-  },
-  {
-    "id": "example-tool",
-    "name": "Example Tool",
-    "description": "Template entry — duplicate this block in tools.json when adding a new tool.",
-    "category": "Template",
-    "pptFile": "presentations/example-tool-tutorial.pptx",
-    "estimatedMinutes": 10,
-    "steps": [
-      {
-        "title": "Step 1 — Getting started",
-        "description": "Describe the first action the user should take.",
-        "tips": ["Add helpful hints here."]
-      },
-      {
-        "title": "Step 2 — Main workflow",
-        "description": "Explain the core steps for using the tool.",
-        "tips": []
-      },
-      {
-        "title": "Step 3 — Wrap up",
-        "description": "How to save, export, or verify the output.",
-        "tips": []
       }
     ]
   }

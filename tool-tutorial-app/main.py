@@ -57,7 +57,7 @@ def open_file(path: Path) -> None:
 class ToolTutorialApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Tool Tutorial Dashboard")
+        self.title("DriveScope Tutorial Hub")
         self.geometry("1050x720")
         self.minsize(900, 600)
         self.configure(bg=COLORS["bg"])
@@ -165,10 +165,10 @@ class ToolTutorialApp(tk.Tk):
 
         header = ttk.Frame(self.home_frame)
         header.pack(fill=tk.X, pady=(0, 18))
-        ttk.Label(header, text="Tool Tutorial Dashboard", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(header, text="DriveScope Tutorial Hub", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
-            text="Pick a tool to open its step-by-step tutorial and presentation.",
+            text="Step-by-step guides for DriveScope and related driveability tools.",
             style="Subtitle.TLabel",
         ).pack(anchor="w", pady=(4, 0))
 
@@ -285,11 +285,17 @@ class ToolTutorialApp(tk.Tk):
         self.step_body = ttk.Label(right, text="", style="StepBody.TLabel")
         self.step_body.pack(anchor="w", pady=(8, 16))
 
-        self.tips_frame = ttk.Frame(right, style="Card.TFrame", padding=12)
-        self.tips_title = ttk.Label(self.tips_frame, text="TIPS", style="TipsTitle.TLabel")
-        self.tips_title.pack(anchor="w")
-        self.tips_body = ttk.Label(self.tips_frame, text="", style="TipsBody.TLabel")
-        self.tips_body.pack(anchor="w", pady=(6, 0))
+        self.tips_frame = tk.Frame(right, bg=COLORS["warning_bg"], padx=12, pady=12)
+        self.tips_body = tk.Label(
+            self.tips_frame,
+            text="",
+            bg=COLORS["warning_bg"],
+            fg=COLORS["muted"],
+            font=("Segoe UI", 10),
+            justify=tk.LEFT,
+            wraplength=520,
+        )
+        self.tips_body.pack(anchor="w")
 
         nav = ttk.Frame(right)
         nav.pack(fill=tk.X, pady=(24, 0))
@@ -310,12 +316,16 @@ class ToolTutorialApp(tk.Tk):
             direction = -1 if event.num == 4 else 1
             self.canvas.yview_scroll(direction, "units")
 
+    def _active_search_query(self) -> str:
+        query = self.search_var.get().strip().lower()
+        if query == self._search_placeholder.lower():
+            return ""
+        return query
+
     def _filter_tools(self) -> None:
         if not self._ui_ready:
             return
-        query = self.search_var.get().strip().lower()
-        if query == self._search_placeholder.lower():
-            query = ""
+        query = self._active_search_query()
         if not query:
             self._render_tool_cards(self.tools)
             return
@@ -441,29 +451,11 @@ class ToolTutorialApp(tk.Tk):
 
         tips = step.get("tips") or []
         if tips:
-            self.tips_frame.configure(style="Card.TFrame")
             self.tips_frame.pack(anchor="w", fill=tk.X, pady=(0, 8))
-            for child in self.tips_frame.winfo_children():
-                child.destroy()
-            tk.Label(
-                self.tips_frame,
-                text="TIPS",
-                bg=COLORS["warning_bg"],
-                fg=COLORS["warning_text"],
-                font=("Segoe UI", 9, "bold"),
-            ).pack(anchor="w")
-            tk.Label(
-                self.tips_frame,
-                text="\n".join(f"• {tip}" for tip in tips),
-                bg=COLORS["warning_bg"],
-                fg=COLORS["muted"],
-                font=("Segoe UI", 10),
-                justify=tk.LEFT,
-                wraplength=520,
-            ).pack(anchor="w", pady=(6, 0))
-            self.tips_frame.configure(bg=COLORS["warning_bg"])
+            self.tips_body.configure(text="TIPS\n" + "\n".join(f"• {tip}" for tip in tips))
         else:
             self.tips_frame.pack_forget()
+            self.tips_body.configure(text="")
 
         self.prev_btn.state(["!disabled"] if index > 0 else ["disabled"])
         self.next_btn.configure(text="Finish ✓" if index == len(steps) - 1 else "Next →")
@@ -494,9 +486,10 @@ class ToolTutorialApp(tk.Tk):
         open_file(APP_DIR / rel)
 
     def destroy(self) -> None:
-        self.canvas.unbind_all("<MouseWheel>")
-        self.canvas.unbind_all("<Button-4>")
-        self.canvas.unbind_all("<Button-5>")
+        if hasattr(self, "canvas"):
+            self.canvas.unbind_all("<MouseWheel>")
+            self.canvas.unbind_all("<Button-4>")
+            self.canvas.unbind_all("<Button-5>")
         super().destroy()
 
 
