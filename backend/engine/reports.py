@@ -67,6 +67,22 @@ def _fmt(v, nd=1):
         return str(v)
 
 
+def _format_document_versions(values):
+    """Normalize report metadata accepted from both UI and API clients."""
+    formatted = []
+    for item in values or []:
+        if isinstance(item, dict):
+            label = item.get("name") or item.get("label")
+            value = item.get("version") or item.get("value")
+            if label and value:
+                formatted.append(f"{label}: {value}")
+            elif value or label:
+                formatted.append(str(value or label))
+        elif item:
+            formatted.append(str(item))
+    return " / ".join(formatted) or "-"
+
+
 # ================================================================ PPTX
 
 def build_pptx(data, out_path):
@@ -95,7 +111,7 @@ def build_pptx(data, out_path):
             project.get("odriv_milestone") or "-",
             str(project.get("version") or "-").lstrip("Vv"), project.get("area") or "-"),
         "Target vehicle: %s" % (project.get("target_vehicle") or "-"),
-        "Document versions: %s" % (" / ".join(v for v in data.get("doc_versions", []) if v) or "-"),
+        "Document versions: %s" % _format_document_versions(data.get("doc_versions")),
         "Generated: %s" % datetime.now().strftime("%Y-%m-%d %H:%M"),
     ]
     for i, line in enumerate(lines):

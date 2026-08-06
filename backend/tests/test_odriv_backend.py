@@ -244,8 +244,7 @@ class TestConfigEditRoundtrip:
         # GET back
         r3 = session.get(f"{API}/config/targets", timeout=10)
         assert r3.status_code == 200
-        # structural equality (key set)
-        assert set(r3.json().keys()) == set(data.keys())
+        assert r3.json() == data
 
     def test_put_unknown_section(self, session):
         r = session.put(f"{API}/config/__nope__", json={"data": {}}, timeout=10)
