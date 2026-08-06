@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useWorkbook } from "@/components/Workbook";
 import { NewProjectModal, DocVersionsModal, OpenDatabaseModal } from "@/components/modals";
@@ -34,6 +34,15 @@ export default function HomeSheet() {
     setLists(res.data);
     return res.data;
   };
+
+  // Load the milestone/area lists as soon as a project exists so the
+  // SOFTWARE/ODRIV MILESTONE and AREA dropdowns show the project's actual
+  // value (not just the "MDL2" placeholder) after a page refresh.
+  const hasProject = !!project;
+  useEffect(() => {
+    if (hasProject) ensureLists();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasProject]);
 
   const run = async (label, fn) => {
     setBusyMsg(label);
