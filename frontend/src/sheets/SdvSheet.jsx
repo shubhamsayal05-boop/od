@@ -26,7 +26,7 @@ export default function SdvSheet({ name }) {
       setData(res.data);
     } catch (e) { setErr(e.response?.data?.detail || e.message); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [name]);
+  useEffect(() => { load(); }, [name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = async () => {
     setBusy(true);
@@ -35,14 +35,27 @@ export default function SdvSheet({ name }) {
     finally { setBusy(false); }
   };
 
+  // targets are keyed by the exact criterion spelling from the TARGETS sheet,
+  // which sometimes differs in case from the STRUCTURE sheet's criteria list
+  // (e.g. "Ratio Change" vs "ratio change") — match case-insensitively.
+  const targetsByKey = useMemo(() => {
+    const m = {};
+    Object.entries(data?.targets || {}).forEach(([k, v]) => {
+      m[k.trim().toLowerCase()] = v;
+    });
+    return m;
+  }, [data]);
+
   const criteria = useMemo(() => {
     if (!data) return [];
     const key = part === "driv" ? "driv" : "resp";
     return (data.structure?.criteria || [])
-      .map((c) => ({ name: c.name, crit: data.targets?.[c.name]?.[key] ?? null,
-        wl: data.targets?.[c.name]?.wl, t: data.targets?.[c.name]?.t }))
+      .map((c) => {
+        const t = targetsByKey[c.name?.trim().toLowerCase()];
+        return { name: c.name, crit: t?.[key] ?? null, wl: t?.wl, t: t?.t };
+      })
       .filter((c) => c.crit !== null);
-  }, [data, part]);
+  }, [data, part, targetsByKey]);
 
   const visibleCriteria = criteria.filter((c) => showC3 || Number(c.crit) !== 3);
   const dataCols = (data?.structure?.data || []).slice(0, 8);
