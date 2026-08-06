@@ -15,9 +15,14 @@ from fastapi.responses import FileResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware.cors import CORSMiddleware
 
-from engine import config_loader, scoring, importer
-from engine.classifier import classify_event, get_channel
-from engine import reports as report_builder
+try:
+    from .engine import config_loader, scoring, importer
+    from .engine.classifier import classify_event, get_channel
+    from .engine import reports as report_builder
+except ImportError:  # Support `uvicorn server:app` from the backend directory.
+    from engine import config_loader, scoring, importer
+    from engine.classifier import classify_event, get_channel
+    from engine import reports as report_builder
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')

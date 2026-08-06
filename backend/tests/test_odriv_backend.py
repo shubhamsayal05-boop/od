@@ -4,16 +4,29 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ['REACT_APP_BACKEND_URL'].rstrip('/') if os.environ.get('REACT_APP_BACKEND_URL') \
-    else open('/app/frontend/.env').read().split('REACT_APP_BACKEND_URL=')[1].split('\n')[0].strip()
-API = f"{BASE_URL}/api"
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+API = f"{BASE_URL}/api" if BASE_URL else "/api"
 
 
 @pytest.fixture(scope="module")
 def session():
-    s = requests.Session()
-    s.headers.update({"Content-Type": "application/json"})
-    return s
+    if BASE_URL:
+        with requests.Session() as remote:
+            yield remote
+        return
+
+    os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
+    os.environ.setdefault("DB_NAME", "odriv_test")
+
+    from fastapi.testclient import TestClient
+    from mongomock_motor import AsyncMongoMockClient
+    from backend import server
+
+    mock_client = AsyncMongoMockClient()
+    server.client = mock_client
+    server.db = mock_client["odriv_test"]
+    with TestClient(server.app) as local:
+        yield local
 
 
 # ------------------------------------------------------------- state / config
@@ -178,13 +191,12 @@ class TestProjectPipeline:
 
     def test_13_reimport_via_file_endpoint(self, session):
         # download sample, then re-upload
-        s2 = requests.Session()  # no Content-Type
-        d = s2.get(f"{API}/import/sample", timeout=60)
+        d = session.get(f"{API}/import/sample", timeout=60)
         # need to wipe events first, but new project deletes all - skip wipe
         # Just verify upload works
         files = {"file": ("sample.xlsx", io.BytesIO(d.content),
                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
-        r = requests.post(f"{API}/import/file", files=files, timeout=60)
+        r = session.post(f"{API}/import/file", files=files, timeout=60)
         assert r.status_code == 200, r.text
         data = r.json()
         assert data["imported"] > 400
