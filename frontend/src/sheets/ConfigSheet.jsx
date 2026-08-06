@@ -19,7 +19,7 @@ export default function ConfigSheet({ sheetName, section }) {
     }
     setDirty(false);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [section]);
+  useEffect(() => { load(); }, [section]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     setSaving(true);
@@ -33,8 +33,9 @@ export default function ConfigSheet({ sheetName, section }) {
     finally { setSaving(false); }
   };
 
-  const mutate = (fn) => { fn(); setData({ ...data }); setDirty(true); };
-  const mutateExtra = (fn) => { fn(); setExtra({ ...extra }); setDirty(true); };
+  const clone = (v) => (Array.isArray(v) ? [...v] : { ...v });
+  const mutate = (fn) => { fn(); setData(clone(data)); setDirty(true); };
+  const mutateExtra = (fn) => { fn(); setExtra(clone(extra)); setDirty(true); };
 
   if (!data) return <div style={{ padding: 30, color: "#777" }}>Loading {sheetName}…</div>;
 
@@ -196,7 +197,8 @@ function DefinitionsEditor({ data, mutate }) {
         </label>
         <button className="xl-btn" data-testid="def-add-rule"
           onClick={() => mutate(() => {
-            data.push({ order: Math.max(...data.map((r) => r.order)) + 1, sdv: "NEW SDV", active: true, conditions: [] });
+            const nextOrder = data.length ? Math.max(...data.map((r) => r.order)) + 1 : 1;
+            data.push({ order: nextOrder, sdv: "NEW SDV", active: true, conditions: [] });
             setSel(data.length - 1);
           })}>+ Add rule</button>
         <button className="xl-btn" data-testid="def-del-rule"
