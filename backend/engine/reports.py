@@ -58,6 +58,22 @@ def scatter_png(events, x_name, y_name, title):
     return buf
 
 
+def _doc_versions_line(doc_versions):
+    """Render arbitrary doc_versions entries (plain strings or {name, version}
+    objects) into a single readable line, never raising on unexpected shapes."""
+    parts = []
+    for v in doc_versions or []:
+        if isinstance(v, dict):
+            label = v.get("name") or ""
+            val = v.get("version") or ""
+            text = f"{label}: {val}".strip(": ") if (label or val) else ""
+        else:
+            text = str(v) if v else ""
+        if text:
+            parts.append(text)
+    return " / ".join(parts) or "-"
+
+
 def _fmt(v, nd=1):
     if v is None:
         return "-"
@@ -95,7 +111,7 @@ def build_pptx(data, out_path):
             project.get("odriv_milestone") or "-",
             str(project.get("version") or "-").lstrip("Vv"), project.get("area") or "-"),
         "Target vehicle: %s" % (project.get("target_vehicle") or "-"),
-        "Document versions: %s" % (" / ".join(v for v in data.get("doc_versions", []) if v) or "-"),
+        "Document versions: %s" % _doc_versions_line(data.get("doc_versions")),
         "Generated: %s" % datetime.now().strftime("%Y-%m-%d %H:%M"),
     ]
     for i, line in enumerate(lines):
@@ -237,7 +253,7 @@ def build_pdf(data, out_path):
         project.get("target_vehicle") or "-"), body))
     story.append(Paragraph("Generated: %s — Doc versions: %s" % (
         datetime.now().strftime("%Y-%m-%d %H:%M"),
-        " / ".join(v for v in data.get("doc_versions", []) if v) or "-"), body))
+        _doc_versions_line(data.get("doc_versions"))), body))
     story.append(Spacer(1, 14))
 
     story.append(Paragraph("Risk assessment for customer complaints", h2))
