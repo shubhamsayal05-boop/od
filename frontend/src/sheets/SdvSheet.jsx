@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
@@ -20,13 +20,14 @@ export default function SdvSheet({ name }) {
   const [showC3, setShowC3] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
+      setErr(null);
       const res = await api.get(`/sdv/${encodeURIComponent(name)}`);
       setData(res.data);
     } catch (e) { setErr(e.response?.data?.detail || e.message); }
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [name]);
+  }, [name]);
+  useEffect(() => { load(); }, [load]);
 
   const update = async () => {
     setBusy(true);

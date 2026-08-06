@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 /* Generic editable configuration sheets — the workbook's veryHidden layer.
@@ -10,7 +10,7 @@ export default function ConfigSheet({ sheetName, section }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await api.get(`/config/${section}`);
     setData(res.data);
     if (section === "settings_blocks") {
@@ -18,8 +18,8 @@ export default function ConfigSheet({ sheetName, section }) {
       setExtra(g.data);
     }
     setDirty(false);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [section]);
+  }, [section]);
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     setSaving(true);

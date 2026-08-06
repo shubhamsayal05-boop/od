@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmt } from "@/lib/api";
 
 export function Modal({ title, onClose, children, footer, wide }) {
@@ -162,12 +162,23 @@ export function OpenDatabaseModal({ onClose }) {
   const [editing, setEditing] = useState(null);
   const limit = 25;
 
-  const load = async (s = skip) => {
-    const res = await api.get("/events", { params: { skip: s, limit, sdv: sdv || undefined, search: search || undefined } });
+  const loadPage = useCallback(async (s, selectedSdv, query) => {
+    const res = await api.get("/events", {
+      params: {
+        skip: s,
+        limit,
+        sdv: selectedSdv || undefined,
+        search: query || undefined,
+      },
+    });
     setEvents(res.data.events);
     setTotal(res.data.total);
-  };
-  useEffect(() => { load(0); setSkip(0); /* eslint-disable-next-line */ }, [sdv]);
+  }, []);
+  const load = (s = skip) => loadPage(s, sdv, search);
+  useEffect(() => {
+    loadPage(0, sdv, search);
+    setSkip(0);
+  }, [sdv, search, loadPage]);
 
   const del = async (id) => {
     if (!window.confirm("Delete this record from the database?")) return;
