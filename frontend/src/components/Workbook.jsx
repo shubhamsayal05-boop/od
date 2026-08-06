@@ -54,7 +54,7 @@ export default function Workbook() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const openTab = useCallback((name) => setActive(name), []);
+  const openTab = useCallback((name) => setActive(name), [setActive]);
 
   const ctx = { state, refresh, openTab, busy, setBusy, setSelection, unlocked };
 
