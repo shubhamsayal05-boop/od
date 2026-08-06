@@ -18,10 +18,10 @@ VERDICT_MATRIX = [
 ]
 
 
-def criterion_index(note, wl, t, criticity):
+def criterion_index(note, wl, t, criticity, coef1=2.0, coef2=-1.0):
     """Agreement index for one criterion -> (index, color) or None.
 
-    C = (3-c)/2 ; ZF = COEF1*WL + COEF2*T = 2*WL - T ; piecewise penalty.
+    C = (3-c)/2 ; ZF = COEF1*WL + COEF2*T (defaults 2*WL - T) ; piecewise penalty.
     Participates only when WL>0, T>0, 0<note<=10.
     """
     try:
@@ -35,7 +35,7 @@ def criterion_index(note, wl, t, criticity):
         return None
     if note is None or not (0 < note <= 10):
         return None
-    zf = 2 * wl - t
+    zf = coef1 * wl + coef2 * t
     denom = t - zf
     if denom == 0:
         return None
@@ -111,7 +111,7 @@ def criticity_level(color, priority, indice, criticity_cfg):
 
 
 def score_event(channels, criteria_rows, part, coefficients, prior_cfgs,
-                criticity_cfg):
+                criticity_cfg, coef1=2.0, coef2=-1.0):
     """Full per-event computation for one part ('driv'/'dyn').
 
     criteria_rows: {criterion_name: targets_row} for this SDV.
@@ -122,7 +122,7 @@ def score_event(channels, criteria_rows, part, coefficients, prior_cfgs,
     for name, row in criteria_rows.items():
         res = criterion_index(_to_float(get_channel(channels, name)),
                               _to_float(row.get("wl")), _to_float(row.get("t")),
-                              row.get(key))
+                              row.get(key), coef1, coef2)
         if res is None:
             continue
         idx, color = res
@@ -247,8 +247,11 @@ def calculate_rating(project, events, cfg, targets_lookup, canon_map):
     """Afficher_Calcul master loop -> (event_updates, sdv_results, global_results)."""
     sg = cfg["settings_global"]
     coefficients = sg["coefficients"]
-    puiss = sg["constants"]["PUISS"]
-    gpuiss = sg["constants"]["GLOBALPUISS"]
+    constants = sg["constants"]
+    puiss = constants["PUISS"]
+    gpuiss = constants["GLOBALPUISS"]
+    coef1 = constants.get("COEF1", 2.0)
+    coef2 = constants.get("COEF2", -1.0)
     calculs = cfg["calculs"]
     blocks = cfg["settings_blocks"]
     blocks_up = {k.strip().upper(): v for k, v in blocks.items()}
@@ -289,7 +292,8 @@ def calculate_rating(project, events, cfg, targets_lookup, canon_map):
             lowest = None
             for ev in evs:
                 sc = score_event(ev["channels"], criteria_rows, part,
-                                 coefficients, prior_cfgs, cfg["criticity"])
+                                 coefficients, prior_cfgs, cfg["criticity"],
+                                 coef1, coef2)
                 if sc is None:
                     continue
                 scores.append(sc)
